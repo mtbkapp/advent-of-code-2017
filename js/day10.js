@@ -15,7 +15,6 @@ function twist(rope, start, len) {
     const head = rope.slice(start);
     const tail = rope.slice(0, end % rope.length);
     slice = head.concat(tail); 
-
   } else {
     slice = rope.slice(start, end);
   }
