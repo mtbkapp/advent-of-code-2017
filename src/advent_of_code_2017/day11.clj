@@ -26,11 +26,11 @@
 
 (defmethod move :hex/south-east
   [[x y z] _]
-  [(dec x) y (inc z)])
+  [(inc x) (dec y) z])
 
 (defmethod move :hex/south-west
   [[x y z] _]
-  [(inc x) (dec y) z])
+  [(dec x) y (inc z)])
 
 ; Hex layout
 ;  \ n  /
@@ -44,13 +44,23 @@
 ;coord = [north <-> south, north-east <-> south-west, north-west <-> south-east]
 ;taken from https://www.redblobgames.com/grids/hexagons/
 
+(defn- take-path
+  [start path]
+  (reduce move start path))
+
 (deftest test-move
   (is (= [0 1 -1] (move [0 0 0] :hex/north)))
   (is (= [1 0 -1] (move [0 0 0] :hex/north-east)))
   (is (= [-1 1 0] (move [0 0 0] :hex/north-west)))
   (is (= [0 -1 1] (move [0 0 0] :hex/south)))
-  (is (= [-1 0 1] (move [0 0 0] :hex/south-east)))
-  (is (= [1 -1 0] (move [0 0 0] :hex/south-west))))
+  (is (= [1 -1 0] (move [0 0 0] :hex/south-east)))
+  (is (= [-1 0 1] (move [0 0 0] :hex/south-west)))
+  (is (= start (take-path start [:hex/south :hex/north])))
+  (is (= start (take-path start [:hex/north :hex/south])))
+  (is (= start (take-path start [:hex/north-west :hex/south-east])))
+  (is (= start (take-path start [:hex/south-east :hex/north-west])))
+  (is (= start (take-path start [:hex/north-east :hex/south-west])))
+  (is (= start (take-path start [:hex/south-west :hex/north-east]))))
 
 (defn distance 
   [[ax ay az] [bx by bz]]
@@ -59,6 +69,8 @@
         (Math/abs (- bz az))) 
      2))
 
+(move (move start :hex/north-east) :hex/south-west)
+
 (deftest test-distance
   (is (= 0 (distance start start)))
   (is (= 1 (distance start (move start :hex/north))))
@@ -66,7 +78,23 @@
   (is (= 1 (distance start (move start :hex/north-west))))
   (is (= 1 (distance start (move start :hex/south))))
   (is (= 1 (distance start (move start :hex/south-east))))
-  (is (= 1 (distance start (move start :hex/south-west)))))
+  (is (= 1 (distance start (move start :hex/south-west))))
+  (is (= 3 (distance start (take-path start [:hex/north-east
+                                             :hex/north-east
+                                             :hex/north-east]))))
+  (is (= 0 (distance start (take-path start [:hex/north-east
+                                             :hex/north-east
+                                             :hex/south-west
+                                             :hex/south-west]))))
+  (is (= 2 (distance start (take-path start [:hex/north-east
+                                             :hex/north-east
+                                             :hex/south
+                                             :hex/south]))))
+  (is (= 3 (distance start (take-path start [:hex/south-east
+                                             :hex/south-west
+                                             :hex/south-east
+                                             :hex/south-west
+                                             :hex/south-west])))))
 
 (def dir-map
   {"n" :hex/north
@@ -76,6 +104,11 @@
    "se" :hex/south-east
    "sw" :hex/south-west})
 
+; The trouble with lazy read is that you have to have
+; have the stream/reader open to see unrealized values
+; in the lazy-seq. The stream can be closed when the end
+; of the file found but will still need to close if only
+; part of the stream is needed to be read.
 (defn- lazy-read
   [^Reader rdr]
   (lazy-seq
@@ -94,24 +127,32 @@
                    (str (char c1) (char c2)))))
           (lazy-read rdr))))))
 
-; state machine
-; start c1 = nil, c2 = nil
-; read 2 char
-; case 1
-;   c1 = direction
-;   c2 = \,
-; case 2
-;   c1 = part of direction
-;   c2 = 2nd part of direction
-;   must read another char, which should be \, repeat until char = -1
-
 (defn read-input
   []
   (with-open [rdr (io/reader (io/resource "day11.txt"))]
     (doall (lazy-read rdr))))
 
-(distance 
-  (reduce
-    move
+#_(solve-part1)
+(defn solve-part1
+  []
+  (distance 
     start
-    (read-input)))
+    (reduce
+      move
+      start
+      (read-input))))
+
+#_(solve-part2)
+(defn solve-part2
+  []
+  (->> (read-input)
+       (reduce
+         (fn [[last-coord positions] dir]
+           (let [next-coord (move last-coord dir)]
+             [next-coord (conj positions next-coord)]))
+         [start [start]])
+       (second)
+       (map (partial distance start))
+       (reduce max)))
+
+
